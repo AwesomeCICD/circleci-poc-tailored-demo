@@ -1,0 +1,20 @@
+# DEMO: a pipeline that skips the SonarQube scan and stores static AWS keys.
+# `circleci policy decide policies/ --input policies/examples/blocked-no-sonarqube.yml`
+# should return HARD_FAIL for require_sonarqube_scan and no_static_aws_keys.
+version: 2.1
+
+jobs:
+  deploy:
+    docker:
+      - image: cimg/aws:2025.01
+    resource_class: large
+    environment:
+      AWS_ACCESS_KEY_ID: AKIAEXAMPLE
+    steps:
+      - checkout
+      - run: echo "deploying without a scan"
+
+workflows:
+  main:
+    jobs:
+      - deploy

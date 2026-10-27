@@ -1,0 +1,4 @@
+# Stacks deployed to every environment, in order (one per line).
+# Adding a new module? Add its stack name here and it ships everywhere.
+network
+compute

@@ -1,0 +1,215 @@
+# CI pipeline: runs on every push.
+#   - Every branch: Terraform format/validate + SonarQube scan + plan against dev
+#   - main branch:  the same checks, then deploys to dev automatically
+# Promotion to test / stage / prod happens from the CircleCI Deploys page
+# (one click, see .circleci/deploy.yml), never by creating a branch per environment.
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@5.4.1
+
+parameters:
+  # Backup path if the Deploys-page promotion is not set up yet:
+  # trigger a pipeline on main with this set to true to promote with approvals.
+  use-approval-promotion:
+    type: boolean
+    default: false
+
+executors:
+  terraform:
+    docker:
+      - image: cimg/aws:2025.01
+    resource_class: small
+  node:
+    docker:
+      - image: cimg/node:22.11
+    resource_class: medium
+
+commands:
+  install-terraform:
+    parameters:
+      version:
+        type: string
+        default: "1.10.5"
+    steps:
+      - run:
+          name: Install Terraform << parameters.version >>
+          command: |
+            curl -sSfL -o /tmp/tf.zip \
+              "https://releases.hashicorp.com/terraform/<< parameters.version >>/terraform_<< parameters.version >>_linux_amd64.zip"
+            sudo unzip -o -q /tmp/tf.zip -d /usr/local/bin
+            terraform version
+
+  aws-login:
+    description: Log in to AWS with OIDC. No AWS keys are stored in CircleCI.
+    steps:
+      - aws-cli/setup:
+          role_arn: ${AWS_ROLE_ARN}
+          region: ${AWS_REGION}
+          role_session_name: circleci-${CIRCLE_PROJECT_REPONAME}
+          session_duration: "3600"
+      - run:
+          name: Show who we are in AWS
+          command: aws sts get-caller-identity
+
+  deploy-environment:
+    description: Apply every stack to one environment and record it on the Deploys page.
+    parameters:
+      environment:
+        type: string
+      version:
+        type: string
+    steps:
+      - run:
+          name: Record planned deploy (Deploys page)
+          command: |
+            circleci run release plan infra-<< parameters.environment >> \
+              --environment-name=<< parameters.environment >> \
+              --component-name=ocsd-poc-infra \
+              --target-version=<< parameters.version >>
+      - run:
+          name: Deploy all stacks to << parameters.environment >>
+          command: |
+            grep -v '^#' scripts/stacks.txt | while read -r stack; do
+              [ -z "$stack" ] && continue
+              echo "=== ${stack} -> << parameters.environment >> ==="
+              scripts/tf.sh "$stack" << parameters.environment >> apply
+            done
+      - run:
+          name: Mark deploy running
+          command: circleci run release update infra-<< parameters.environment >> --status=RUNNING
+      - run:
+          name: Mark deploy succeeded
+          command: circleci run release update infra-<< parameters.environment >> --status=SUCCESS
+          when: on_success
+      - run:
+          name: Mark deploy failed
+          command: |
+            circleci run release update infra-<< parameters.environment >> \
+              --status=FAILED --failure-reason="Terraform apply failed, see job log"
+          when: on_fail
+
+jobs:
+  validate:
+    executor: terraform
+    steps:
+      - checkout
+      - install-terraform
+      - run:
+          name: Check formatting
+          command: terraform fmt -check -recursive -diff
+      - run:
+          name: Validate every stack
+          command: |
+            chmod +x scripts/*.sh
+            grep -v '^#' scripts/stacks.txt | while read -r stack; do
+              [ -z "$stack" ] && continue
+              scripts/tf.sh "$stack" dev validate
+            done
+
+  sonarqube-scan:
+    executor: node
+    steps:
+      - checkout
+      - run:
+          name: SonarQube scan (fails if the quality gate fails)
+          command: |
+            npx --yes sonarqube-scanner@4 \
+              -Dsonar.host.url="${SONAR_HOST_URL}" \
+              -Dsonar.token="${SONAR_TOKEN}" \
+              -Dsonar.qualitygate.wait=true
+
+  plan:
+    executor: terraform
+    parameters:
+      environment:
+        type: string
+    steps:
+      - checkout
+      - install-terraform
+      - aws-login
+      - run:
+          name: Plan all stacks for << parameters.environment >>
+          command: |
+            chmod +x scripts/*.sh
+            grep -v '^#' scripts/stacks.txt | while read -r stack; do
+              [ -z "$stack" ] && continue
+              scripts/tf.sh "$stack" << parameters.environment >> plan
+            done
+
+  deploy:
+    executor: terraform
+    parameters:
+      environment:
+        type: string
+    steps:
+      - checkout
+      - install-terraform
+      - aws-login
+      - run: chmod +x scripts/*.sh
+      - deploy-environment:
+          environment: << parameters.environment >>
+          version: ${CIRCLE_SHA1:0:7}
+
+workflows:
+  ci:
+    when:
+      not: << pipeline.parameters.use-approval-promotion >>
+    jobs:
+      - validate
+      - sonarqube-scan:
+          context: [ocsd-sonarqube]
+      - plan:
+          name: plan-dev
+          environment: dev
+          context: [ocsd-aws-dev]
+          requires: [validate, sonarqube-scan]
+          filters: pipeline.git.branch != "main"
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          context: [ocsd-aws-dev]
+          requires: [validate, sonarqube-scan]
+          filters: pipeline.git.branch == "main"
+
+  # Backup promotion path: dev -> test -> stage -> prod with approvals.
+  # Each approval uses the target environment's restricted context, so only
+  # members of that context's security group can approve.
+  promote-with-approvals:
+    when: << pipeline.parameters.use-approval-promotion >>
+    jobs:
+      - validate
+      - sonarqube-scan:
+          context: [ocsd-sonarqube]
+      - deploy:
+          name: deploy-dev
+          environment: dev
+          context: [ocsd-aws-dev]
+          requires: [validate, sonarqube-scan]
+      - approve-test:
+          type: approval
+          context: [ocsd-aws-test]
+          requires: [deploy-dev]
+      - deploy:
+          name: deploy-test
+          environment: test
+          context: [ocsd-aws-test]
+          requires: [approve-test]
+      - approve-stage:
+          type: approval
+          context: [ocsd-aws-stage]
+          requires: [deploy-test]
+      - deploy:
+          name: deploy-stage
+          environment: stage
+          context: [ocsd-aws-stage]
+          requires: [approve-stage]
+      - approve-prod:
+          type: approval
+          context: [ocsd-aws-prod]
+          requires: [deploy-stage]
+      - deploy:
+          name: deploy-prod
+          environment: prod
+          context: [ocsd-aws-prod]
+          requires: [approve-prod]

@@ -1,0 +1,155 @@
+# DEPLOY PIPELINE: what runs when someone clicks Deploy or Promote on the
+# CircleCI Deploys page. Set this file as the project's deploy pipeline
+# (Project Settings > Deploys > Deploy Pipeline). See docs/SETUP.md.
+#
+# CircleCI passes in what the person picked in the UI:
+#   pipeline.deploy.environment_name  -> dev | test | stage | prod
+#   pipeline.deploy.target_version    -> the version (commit) to deploy
+#
+# The setup guide still shows pipeline.deploy.target_environment_name.
+# The config compiler rejects that name. environment_name is the one it accepts.
+#
+# One workflow per environment. Stage and prod require an approval from the
+# environment's authorized group before anything changes.
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@5.4.1
+
+executors:
+  terraform:
+    docker:
+      - image: cimg/aws:2025.01
+    resource_class: small
+
+commands:
+  install-terraform:
+    parameters:
+      version:
+        type: string
+        default: "1.10.5"
+    steps:
+      - run:
+          name: Install Terraform << parameters.version >>
+          command: |
+            curl -sSfL -o /tmp/tf.zip \
+              "https://releases.hashicorp.com/terraform/<< parameters.version >>/terraform_<< parameters.version >>_linux_amd64.zip"
+            sudo unzip -o -q /tmp/tf.zip -d /usr/local/bin
+            terraform version
+
+jobs:
+  # Re-checks the SonarQube quality gate before any deploy.
+  sonarqube-quality-gate:
+    executor: terraform
+    steps:
+      - checkout
+      - run:
+          name: Confirm SonarQube quality gate is passing
+          command: |
+            KEY="$(awk -F= '/^sonar.projectKey/ {print $2}' sonar-project.properties | tr -d ' ')"
+            STATUS="$(curl -sSf -u "${SONAR_TOKEN}:" \
+              "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${KEY}" \
+              | jq -r '.projectStatus.status')"
+            echo "Quality gate for ${KEY}: ${STATUS}"
+            [ "$STATUS" = "OK" ] || { echo "Quality gate is not passing. Deploy stopped."; exit 1; }
+
+  deploy-from-ui:
+    executor: terraform
+    parameters:
+      environment:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Check out the exact version picked in the UI
+          command: |
+            git fetch --all --tags
+            git checkout "<< pipeline.deploy.target_version >>"
+            chmod +x scripts/*.sh
+      - install-terraform
+      - aws-cli/setup:
+          role_arn: ${AWS_ROLE_ARN}
+          region: ${AWS_REGION}
+          role_session_name: circleci-deploy-<< parameters.environment >>
+          session_duration: "3600"
+      - run:
+          name: Record deploy (Deploys page)
+          command: |
+            circleci run release plan infra-<< parameters.environment >> \
+              --environment-name=<< parameters.environment >> \
+              --component-name=ocsd-poc-infra \
+              --target-version="<< pipeline.deploy.target_version >>"
+      - run:
+          name: Deploy all stacks to << parameters.environment >>
+          command: |
+            grep -v '^#' scripts/stacks.txt | while read -r stack; do
+              [ -z "$stack" ] && continue
+              echo "=== ${stack} -> << parameters.environment >> ==="
+              scripts/tf.sh "$stack" << parameters.environment >> apply
+            done
+      - run:
+          name: Mark deploy running
+          command: circleci run release update infra-<< parameters.environment >> --status=RUNNING
+      - run:
+          name: Mark deploy succeeded
+          command: circleci run release update infra-<< parameters.environment >> --status=SUCCESS
+          when: on_success
+      - run:
+          name: Mark deploy failed
+          command: |
+            circleci run release update infra-<< parameters.environment >> \
+              --status=FAILED --failure-reason="Terraform apply failed, see job log"
+          when: on_fail
+
+workflows:
+  deploy-dev:
+    when:
+      equal: [dev, << pipeline.deploy.environment_name >>]
+    jobs:
+      - sonarqube-quality-gate:
+          context: [ocsd-sonarqube]
+      - deploy-from-ui:
+          environment: dev
+          context: [ocsd-aws-dev]
+          requires: [sonarqube-quality-gate]
+
+  deploy-test:
+    when:
+      equal: [test, << pipeline.deploy.environment_name >>]
+    jobs:
+      - sonarqube-quality-gate:
+          context: [ocsd-sonarqube]
+      - deploy-from-ui:
+          environment: test
+          context: [ocsd-aws-test]
+          requires: [sonarqube-quality-gate]
+
+  deploy-stage:
+    when:
+      equal: [stage, << pipeline.deploy.environment_name >>]
+    jobs:
+      - sonarqube-quality-gate:
+          context: [ocsd-sonarqube]
+      - approve-stage:
+          type: approval
+          context: [ocsd-aws-stage]
+          requires: [sonarqube-quality-gate]
+      - deploy-from-ui:
+          environment: stage
+          context: [ocsd-aws-stage]
+          requires: [approve-stage]
+
+  deploy-prod:
+    when:
+      equal: [prod, << pipeline.deploy.environment_name >>]
+    jobs:
+      - sonarqube-quality-gate:
+          context: [ocsd-sonarqube]
+      - approve-prod:
+          type: approval
+          context: [ocsd-aws-prod]
+          requires: [sonarqube-quality-gate]
+      - deploy-from-ui:
+          environment: prod
+          context: [ocsd-aws-prod]
+          requires: [approve-prod]

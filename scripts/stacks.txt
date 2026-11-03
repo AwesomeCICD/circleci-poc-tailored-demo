@@ -2,3 +2,4 @@
 # Adding a new module? Add its stack name here and it ships everywhere.
 network
 compute
+svc

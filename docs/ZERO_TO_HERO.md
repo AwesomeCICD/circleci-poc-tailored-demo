@@ -57,7 +57,7 @@ The person who starts a deploy often cannot change production. An approver does 
 
 1. You still click **Promote**, then **Deploy**, the same way as Part 3. Pick the version that is ready for **prod** (or **stage**).
 2. The pipeline waits. You should see a job named **approve-prod** (or **approve-stage**) with status **On Hold**. Your Approve button will not work. That is expected.
-3. If Teams notifications are set up ([docs/SETUP.md](SETUP.md), "Optional: Teams notifications"), approvers get a Microsoft Teams message. It names the version, the environment, and links to this pipeline. If Teams is not set up, ask an approver to open CircleCI.
+3. Teams is optional. If the project has `TEAMS_WEBHOOK_URL` set ([docs/SETUP.md](SETUP.md), "Optional: Teams notifications"), approvers get a Microsoft Teams message. It names the version, the environment, and links to this pipeline. If that variable is not set, ask an approver to open CircleCI. Nothing is broken.
 4. The approver opens that link and clicks **Approve**.
 5. You should see the deploy continue, then a green or red result on the Deploys page.
 

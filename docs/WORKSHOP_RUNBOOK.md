@@ -17,7 +17,7 @@
 | 0:00–0:10 | Goals and the three things we're proving |
 | 0:10–0:35 | Follow [docs/SETUP.md](SETUP.md): bootstrap, two pipelines, contexts `ocsd-aws-*`, environments, hierarchy. Teams webhook is optional. |
 | 0:35–0:55 | Push to main → validate → deploy dev (network and one server). First green deploy on the Deploys page |
-| 0:55–1:15 | Promote dev → test → stage (approval) → prod (approval). Approvers get a Teams message when that webhook is set. |
+| 0:55–1:15 | Promote dev → test → stage (approval) → prod (approval). Teams is optional: a project variable `TEAMS_WEBHOOK_URL`, not a context. |
 | 1:15–1:35 | Merge `demo/attach-module`, or follow [docs/ADD_A_MODULE.md](ADD_A_MODULE.md). The new module uses `module.platform.name_prefix` and lookup, then promote it |
 | 1:35–1:50 | Someone new to CI/CD follows ZERO_TO_HERO alone, timed |
 | 1:50–2:00 | Questions, next steps, trial start date |

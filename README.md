@@ -14,7 +14,7 @@ Infrastructure for the Orange County Sheriff's Department (OCSD) CircleCI proof 
 | # | Success criterion | Where it lives |
 | --- | --- | --- |
 | 1 | Zero to hero deployment | [docs/ZERO_TO_HERO.md](docs/ZERO_TO_HERO.md): log in, pick a version, pick an environment, click Deploy |
-| 2 | One-click promotion dev → test → stage → prod, with authorization | [.circleci/deploy.yml](.circleci/deploy.yml) and the environment hierarchy in [docs/SETUP.md](docs/SETUP.md). Stage and prod require approval from a restricted group. Approvers can be notified in Microsoft Teams. |
+| 2 | One-click promotion dev → test → stage → prod, with authorization | [.circleci/deploy.yml](.circleci/deploy.yml) and the environment hierarchy in [docs/SETUP.md](docs/SETUP.md). Stage and prod require approval from a restricted group. A Teams message is optional and needs no extra CircleCI context. |
 | 3 | Templates and modules without copy-paste | [infra/modules/platform-lookup](infra/modules/platform-lookup/main.tf) finds the network, tags, and name prefix. Walkthrough: [docs/ADD_A_MODULE.md](docs/ADD_A_MODULE.md) |
 | 4 | Migrate a critical GitHub Actions pipeline | Use this repo's pattern. The workshop covers mapping the selected workflow |
 | 5 | AWS deploys with IAM roles via OIDC (OpenID Connect) | [bootstrap/main.tf](bootstrap/main.tf) creates the trust and roles. Pipelines call `aws-cli/setup` with `role_arn`. No AWS keys are stored in CircleCI |
@@ -54,6 +54,7 @@ scripts/
   tf.sh               Runs Terraform for <stack> <env> <plan|apply|validate>
   stacks.txt          Which stacks deploy, in order
   check-no-hardcoded-ids.sh   Fails if infra/ contains a pasted network ID
+  notify-teams.sh     Optional Teams post. Skips when TEAMS_WEBHOOK_URL is unset
 docs/
   ZERO_TO_HERO.md     Deploy and promote in the browser, no commands
   SETUP.md            One-time setup

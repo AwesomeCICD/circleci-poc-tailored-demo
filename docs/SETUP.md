@@ -113,7 +113,9 @@ A context is a named bag of settings for jobs. The names must match the config e
 
 ## Optional: Teams notifications
 
-OCSD uses Microsoft Teams, not Slack. When a `stage` or `prod` deploy is waiting, CircleCI can post a message to a channel. The notification never blocks a deploy. Create the context `ocsd-notify` even when you do not have a URL yet. If the variable is unset, the job prints `Teams notification skipped` and stays green. If the context does not exist, that job fails to start, and the approval still proceeds.
+OCSD uses Microsoft Teams, not Slack. When a `stage` or `prod` deploy is waiting, CircleCI can post a message to a channel. This is optional. If you skip it, nothing else is required, and the deploy still waits for an approver. The notification job never blocks that approval.
+
+Do not put the webhook in `ocsd-aws-stage` or `ocsd-aws-prod`. Those contexts are limited to approvers, and the notification job would be refused.
 
 The old Office 365 connector webhooks are retired. Use a Teams **Workflows** webhook (Power Automate).
 
@@ -122,13 +124,13 @@ The old Office 365 connector webhooks are retired. Use a Teams **Workflows** web
 3. Choose the template **Post to a channel when a webhook request is received**. If you do not see it, create a flow whose trigger is **When a Teams webhook request is received**, and whose action posts the adaptive card attachments to this channel.
 4. Pick this team and this channel. Save the flow.
 5. Copy the HTTP URL the flow shows. You should see a long URL that starts with `https://`.
-6. In CircleCI, **Organization Settings → Contexts**, create a context named `ocsd-notify`. Do not restrict it to the approver team. The notification job has to read it.
-7. Add one environment variable: name `TEAMS_WEBHOOK_URL`, value the URL you copied.
+6. In CircleCI, open **Project Settings → Environment Variables**.
+7. Add one variable: name `TEAMS_WEBHOOK_URL`, value the URL you copied.
 8. Do not paste the URL into Git, into a pull request, or into chat.
 
 The pipeline sends the Adaptive Card envelope documented by Microsoft for that trigger: `type` is `message`, and `attachments` holds one card. See [When a Teams webhook request is received](https://learn.microsoft.com/en-us/connectors/teams/).
 
-The message says which version is waiting, the environment (`stage` or `prod`), and links to `https://app.circleci.com/pipelines/workflows/<workflow id>`. If `TEAMS_WEBHOOK_URL` is missing, the job prints `Teams notification skipped` and exits successfully.
+The message says which version is waiting, the environment (`stage` or `prod`), and links to `https://app.circleci.com/pipelines/workflows/<workflow id>`. If `TEAMS_WEBHOOK_URL` is missing, the job prints `Teams notification skipped` and stays green. If the post fails, the job prints a warning with the HTTP status and still stays green.
 
 ## 9. First deploy, then promote to test
 

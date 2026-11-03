@@ -22,7 +22,7 @@ Collect these inputs. Do not guess them.
 | CircleCI project ID | CircleCI → Project Settings → Overview. The project must already exist. |
 | Approver GitHub team | The user names the team. It restricts who can approve `stage` and `prod`. |
 | Required tags | The user lists every tag key and value. You will write them in `extra_tags`. |
-| Teams webhook URL | Optional. Blank is fine. How to create it is [docs/SETUP.md](docs/SETUP.md), section "Optional: Teams notifications". |
+| Teams webhook URL | Optional. Ask once. Blank is fine, and you move on. How to create it is [docs/SETUP.md](docs/SETUP.md), section "Optional: Teams notifications". |
 
 Then do these steps, in this order. Wait for the user to say the browser step is done before the next one.
 
@@ -40,7 +40,7 @@ terraform apply \
 
 Read the outputs `tf_state_bucket` and `deploy_role_arns` back to the user. Stop if they say no.
 
-3. Walk [docs/SETUP.md](docs/SETUP.md) from "CircleCI in the browser" through "Contexts", one numbered step at a time. Wait until the user says "done". Always create the context `ocsd-notify`, even with no webhook yet. If they have a URL, add `TEAMS_WEBHOOK_URL`. If they do not, leave that variable unset so the job prints `Teams notification skipped`.
+3. Walk [docs/SETUP.md](docs/SETUP.md) from "CircleCI in the browser" through "Contexts", one numbered step at a time. Wait until the user says "done". If they gave a Teams webhook URL, **ask the user first**, then add it as the project environment variable `TEAMS_WEBHOOK_URL` (Project Settings → Environment Variables). If they did not, do not create anything for Teams. The notify job prints `Teams notification skipped` and stays green.
 4. **Ask the user first.** Push `main`. Then open the CircleCI pipeline. You should see workflow `ci` with `validate` and `deploy-dev` both green. That is the dev deploy. Do not run `scripts/tf.sh` with `apply`.
 5. Walk [docs/ZERO_TO_HERO.md](docs/ZERO_TO_HERO.md) Part 3 so they promote that version to `test`. You should see workflow `deploy-test` and job `deploy-from-ui` green. Do not click for them.
 
@@ -57,7 +57,7 @@ CircleCI deploys that environment to `dev`, `test`, `stage`, and `prod` from one
 - Never create a branch per environment. An environment is `infra/environments/<env>.tfvars` plus its own Terraform state file.
 - Never hard-code a VPC ID, subnet ID, or security group ID. Never copy-paste a tag block. A new module calls `../platform-lookup` and uses `module.platform.vpc_id`, `module.platform.private_subnet_ids`, `module.platform.public_subnet_ids`, `module.platform.app_security_group_id`, `module.platform.common_tags`, and `module.platform.name_prefix`.
 - Never add AWS access keys. Not in code, not in CircleCI config, not in a `.env` file. AWS access is OpenID Connect (OIDC) roles only.
-- Do not rename the contexts `ocsd-aws-dev`, `ocsd-aws-test`, `ocsd-aws-stage`, `ocsd-aws-prod`, or `ocsd-notify`. Do not rename the environments `dev`, `test`, `stage`, or `prod`.
+- Do not rename the contexts `ocsd-aws-dev`, `ocsd-aws-test`, `ocsd-aws-stage`, or `ocsd-aws-prod`. Do not rename the environments `dev`, `test`, `stage`, or `prod`. Do not put `TEAMS_WEBHOOK_URL` in those contexts. It is a project environment variable, and only when the user has a webhook.
 - Do not edit `bootstrap/` unless the user explicitly asks to change AWS permissions. A laptop edit does not change the live roles until bootstrap is applied again. **Ask the user first.**
 
 ## Repo map
@@ -74,6 +74,7 @@ CircleCI deploys that environment to `dev`, `test`, `stage`, and `prod` from one
 - `scripts/tf.sh` runs Terraform for one stack, one environment, and one action: `plan`, `apply`, or `validate`.
 - `scripts/stacks.txt` lists the stacks that deploy, in order.
 - `scripts/check-no-hardcoded-ids.sh` fails the build if a VPC, subnet, or security group ID is pasted under `infra/`.
+- `scripts/notify-teams.sh` posts the optional Teams approval message. It reads the project variable `TEAMS_WEBHOOK_URL`.
 - `policies/` holds optional config policies. They are not part of setup.
 - `docs/ZERO_TO_HERO.md`, `docs/SETUP.md`, `docs/ADD_A_MODULE.md`, and `docs/WORKSHOP_RUNBOOK.md`.
 
@@ -121,7 +122,7 @@ Tell the user which actions to add. **Ask the user first**, then re-run the boot
 
 Start with [docs/SETUP.md](docs/SETUP.md). Common causes:
 
-- A context name is misspelled. The names are exactly `ocsd-aws-dev`, `ocsd-aws-test`, `ocsd-aws-stage`, `ocsd-aws-prod`, and optionally `ocsd-notify`.
+- A context name is misspelled. The names are exactly `ocsd-aws-dev`, `ocsd-aws-test`, `ocsd-aws-stage`, and `ocsd-aws-prod`.
 - `AWS_REGION` in the context does not match `aws_region` in that environment's tfvars file.
 - Terraform is not formatted, or `scripts/check-no-hardcoded-ids.sh` found a pasted ID.
 - The deploy role is missing permission for the new resource type. See task 6.

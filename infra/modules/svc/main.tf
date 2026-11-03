@@ -34,7 +34,7 @@ module "platform" {
 # --- Example: what "attach to existing" looks like -------------------------
 #
 # resource "aws_lb" "example" {
-#   name               = "${var.project}-${var.environment}-alb"
+#   name               = "${module.platform.name_prefix}-alb"
 #   internal           = true
 #   load_balancer_type = "application"
 #   subnets            = module.platform.private_subnet_ids     # was: ["subnet-0abc...", ...]
@@ -44,12 +44,12 @@ module "platform" {
 # ---------------------------------------------------------------------------
 
 resource "aws_security_group" "svc" {
-  name        = "${var.project}-${var.environment}-svc"
+  name        = "${module.platform.name_prefix}-svc"
   description = "Workshop service attached to the existing VPC"
   vpc_id      = module.platform.vpc_id
 
   tags = merge(module.platform.common_tags, {
-    Name = "${var.project}-${var.environment}-svc"
+    Name = "${module.platform.name_prefix}-svc"
   })
 }
 
@@ -61,7 +61,7 @@ resource "aws_vpc_security_group_ingress_rule" "from_app" {
   to_port                      = 443
 
   tags = merge(module.platform.common_tags, {
-    Name = "${var.project}-${var.environment}-svc-from-app"
+    Name = "${module.platform.name_prefix}-svc-from-app"
   })
 }
 
@@ -70,6 +70,6 @@ resource "aws_network_interface" "svc" {
   security_groups = [aws_security_group.svc.id]
 
   tags = merge(module.platform.common_tags, {
-    Name = "${var.project}-${var.environment}-svc"
+    Name = "${module.platform.name_prefix}-svc"
   })
 }

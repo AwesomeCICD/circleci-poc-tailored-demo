@@ -142,9 +142,12 @@ data "aws_iam_policy_document" "deploy" {
   }
 
   statement {
-    sid       = "ReadAmiParameter"
-    actions   = ["ssm:GetParameter", "ssm:GetParameters"]
-    resources = ["arn:${data.aws_partition.current.partition}:ssm:*::parameter/aws/service/ami-amazon-linux-latest/*"]
+    sid     = "ReadAmiParameter"
+    actions = ["ssm:GetParameter", "ssm:GetParameters"]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ssm:*::parameter/aws/service/ami-amazon-linux-latest/*",
+      "arn:${data.aws_partition.current.partition}:ssm:*::parameter/aws/service/ami-windows-latest/*",
+    ]
   }
 
   statement {

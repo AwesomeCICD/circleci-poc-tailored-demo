@@ -1,4 +1,4 @@
-# EC2 Linux instance that attaches itself to the existing environment.
+# One EC2 instance, Linux or Windows, attached to the existing environment.
 # No VPC, subnet or security group IDs are passed in: platform-lookup finds them.
 
 terraform {
@@ -17,17 +17,20 @@ module "platform" {
   environment = var.environment
 }
 
-# Latest Amazon Linux 2023 AMI from the public SSM parameter (no hard-coded AMI IDs).
-data "aws_ssm_parameter" "al2023" {
-  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
-}
-
 locals {
   subnet_ids = var.subnet_tier == "public" ? module.platform.public_subnet_ids : module.platform.private_subnet_ids
+  # Public SSM parameters. No AMI ID is written in this repo.
+  ami_parameter = var.os == "windows" ? "/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base" : "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+  # Windows Server 2022 needs at least 30 GB. Linux keeps the requested size.
+  root_volume_gb = var.os == "windows" ? max(var.root_volume_gb, 30) : var.root_volume_gb
+}
+
+data "aws_ssm_parameter" "ami" {
+  name = local.ami_parameter
 }
 
 resource "aws_instance" "this" {
-  ami                    = data.aws_ssm_parameter.al2023.value
+  ami                    = data.aws_ssm_parameter.ami.value
   instance_type          = var.instance_type
   subnet_id              = local.subnet_ids[0]
   vpc_security_group_ids = concat([module.platform.app_security_group_id], var.extra_security_group_ids)
@@ -39,10 +42,10 @@ resource "aws_instance" "this" {
   root_block_device {
     encrypted   = true
     volume_type = "gp3"
-    volume_size = var.root_volume_gb
+    volume_size = local.root_volume_gb
   }
 
   tags = merge(module.platform.common_tags, var.tags, {
-    Name = "${var.project}-${var.environment}-${var.name}"
+    Name = "${module.platform.name_prefix}-${var.name}"
   })
 }

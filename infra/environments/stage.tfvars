@@ -1,7 +1,7 @@
 # stage environment. The only file that differs between environments.
 project     = "ocsd-poc"
 environment = "stage"
-aws_region  = "us-west-2" # TODO: set to the sandbox region (GovCloud: us-gov-west-1)
+aws_region  = "us-west-2" # Change this to the sandbox region.
 vpc_cidr    = "10.12.0.0/16"
 
 instance_type      = "t3.micro"

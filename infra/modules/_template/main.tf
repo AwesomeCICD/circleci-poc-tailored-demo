@@ -34,7 +34,7 @@ module "platform" {
 # --- Example: what "attach to existing" looks like -------------------------
 #
 # resource "aws_lb" "example" {
-#   name               = "${var.project}-${var.environment}-alb"
+#   name               = "${module.platform.name_prefix}-alb"
 #   internal           = true
 #   load_balancer_type = "application"
 #   subnets            = module.platform.private_subnet_ids     # was: ["subnet-0abc...", ...]

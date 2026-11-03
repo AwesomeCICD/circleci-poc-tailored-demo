@@ -75,6 +75,11 @@ output "app_security_group_id" {
   value = data.aws_security_group.app.id
 }
 
+# One naming convention for every environment: ocsd-poc-dev, ocsd-poc-prod, and so on.
+output "name_prefix" {
+  value = "${var.project}-${var.environment}"
+}
+
 # The standard tags every new resource should carry.
 output "common_tags" {
   value = {

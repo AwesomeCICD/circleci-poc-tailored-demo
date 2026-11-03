@@ -7,9 +7,20 @@ variable "environment" {
 }
 
 variable "name" {
-  description = "Short name for this instance (e.g. app01)."
+  description = "Short name for this instance (e.g. app01). The full Name tag is name_prefix plus this."
   type        = string
   default     = "app01"
+}
+
+variable "os" {
+  description = "linux uses Amazon Linux 2023. windows uses Windows Server 2022."
+  type        = string
+  default     = "linux"
+
+  validation {
+    condition     = contains(["linux", "windows"], var.os)
+    error_message = "os must be linux or windows."
+  }
 }
 
 variable "instance_type" {

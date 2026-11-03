@@ -1,86 +1,162 @@
-# One-Time Setup (Admins)
+# One-time setup
 
-Do this once before the workshop. It takes about 30 minutes. Values in `<ANGLE_BRACKETS>` are yours to fill in.
+Do this once. It takes about 30 minutes. An AI agent follows this page during [guided setup](../AGENTS.md). A person can follow it alone.
+
+Words used here:
+
+- **CI/CD** means continuous integration and continuous delivery: CircleCI checks the code, then deploys it.
+- **AWS** is Amazon Web Services, the cloud account where the servers run.
+- **VPC** is a virtual private cloud, a private network inside AWS.
+- **OIDC** is OpenID Connect. CircleCI proves which project is running, and AWS returns a short-lived login. No AWS access keys are stored.
+- **IAM** is AWS Identity and Access Management, the permission system. A **role** is a permission set a pipeline can borrow.
+- **ARN** is an Amazon Resource Name, the ID AWS prints for a role. It looks like `arn:aws:iam::123456789012:role/name`.
+
+## What you need before you start
+
+Collect these. Do not guess.
+
+| Input | Where it is |
+| --- | --- |
+| AWS account ID | AWS console, account menu, top right. |
+| AWS region | You choose it. `us-west-2` is a fine default. A new account allows 5 VPCs per region. In VPC → Your VPCs, count them. If you already have 5, pick another region. |
+| GitHub repository | This code, pushed to branch `main`. |
+| CircleCI organization ID | Organization Settings → Overview. |
+| CircleCI project ID | Project Settings → Overview. Create the project first (step 2). |
+| Approver GitHub team | The GitHub team that may approve `stage` and `prod`. |
+| Tags | Any tags that must appear on every resource. |
+| Teams webhook URL | Optional. Section "Optional: Teams notifications". |
 
 ## 1. GitHub
 
-1. Create an empty repository, for example `ocsd/ocsd-circleci-poc`, and push this code to `main`.
-2. Install the **CircleCI GitHub App** on the OCSD GitHub organization and give it access to that repository.
+1. Create a repository and push this code to `main`.
+2. Install the **CircleCI GitHub App** on the GitHub organization, and give it access to this repository.
+3. You should see the repository listed when you add a project in CircleCI.
 
 ## 2. CircleCI project
 
-1. In CircleCI, open the OCSD organization and create a project for the repository.
-2. Copy two IDs. You need both for AWS:
-    - **Organization ID:** Organization Settings → Overview
-    - **Project ID:** Project Settings → Overview
+1. In CircleCI, open your organization.
+2. Click **Projects**, then set up this repository.
+3. Copy the organization ID from **Organization Settings → Overview**.
+4. Copy the project ID from **Project Settings → Overview**.
+5. You should see both IDs on those Overview pages. You need them for the next step.
 
-## 3. AWS: OIDC trust, roles and state bucket (sandbox account)
+## 3. Region, tags, then bootstrap
 
-An AWS admin runs this from a laptop or AWS CloudShell, signed in to the **sandbox account**:
+**Ask the user first** if you are an agent. This apply changes the AWS account. It is the only apply that runs from a laptop. Deploys of `dev`, `test`, `stage`, and `prod` happen in CircleCI, not here.
+
+1. Set `aws_region` in `infra/environments/dev.tfvars`, `test.tfvars`, `stage.tfvars`, and `prod.tfvars` to the same region.
+2. Put the required tags in `extra_tags` in those same four files.
+3. Sign in to the sandbox AWS account.
+4. From the repo root, run:
 
 ```bash
 cd bootstrap
 terraform init
 terraform apply \
-  -var circleci_org_id=<ORG_ID> \
-  -var circleci_project_id=<PROJECT_ID> \
-  -var aws_region=<REGION>
+  -var circleci_org_id=ORG_ID \
+  -var circleci_project_id=PROJECT_ID \
+  -var aws_region=REGION
 ```
 
-Note the outputs: `tf_state_bucket` and `deploy_role_arns` (one role per environment). These roles can only be assumed by pipelines from this one CircleCI project. CircleCI never stores AWS keys.
+5. You should see `Apply complete` and two outputs: `tf_state_bucket` and `deploy_role_arns` with one ARN for `dev`, `test`, `stage`, and `prod`. Save them. The next steps paste them into CircleCI.
 
-> GovCloud: set `aws_region` to `us-gov-west-1` (or `us-gov-east-1`). Confirm CircleCI OIDC is allowed as an identity provider in the GovCloud account before the workshop.
+## CircleCI in the browser
 
-Also set `aws_region` in each `infra/environments/*.tfvars` to the same region.
+Do these in order. After each one you should see the check written at the end of the step.
 
-## 4. CircleCI contexts (where settings and secrets live)
+### 4. Two pipelines
 
-Organization Settings → Contexts. Create these four:
+1. Open **Project Settings → Project Setup**.
+2. Pipelines must be **GitHub App** type. If you also see an **OAuth** pipeline, open it and remove every trigger. You should see **0 triggers** on the OAuth pipeline.
+3. Open the GitHub App pipeline. This is pipeline 1, the main pipeline. Set the config file to `.circleci/config.yml`. Set the checkout source to this repository. Leave one trigger: **all pushes**. You should see that single trigger and that config path.
+4. Click **Add Pipeline**. Name it `deploy`. Set the config file to `.circleci/deploy.yml`. Set the checkout source to this repository. Add **no trigger**. The Deploys page starts this pipeline. You should see `deploy` in the pipeline list with no triggers.
 
-| Context | Environment variables | Restrict to security group |
-| --- | --- | --- |
-| `ocsd-aws-dev` | `AWS_ROLE_ARN` = dev role ARN, `AWS_REGION`, `TF_STATE_BUCKET` | All members |
-| `ocsd-aws-test` | same, with the test role ARN | All members |
-| `ocsd-aws-stage` | same, with the stage role ARN | `<ocsd-release-approvers>` |
-| `ocsd-aws-prod` | same, with the prod role ARN | `<ocsd-release-approvers>` |
+### 5. Choose the deploy pipeline
 
-Restricting the stage and prod contexts to a GitHub team means only that team can approve the `approve-stage` and `approve-prod` jobs or run those deploys.
+1. In the left sidebar, click **Deploys**.
+2. Open **Deploy Pipeline**.
+3. Select **deploy**. Do not select the main pipeline.
+4. You should see **deploy** saved as the deploy pipeline.
 
-## 5. Deploy pipeline and environment hierarchy (one-click promotion)
+### 6. Environments
 
-1. **Deploy pipeline:** Project Settings → Deploys → Deploy Pipeline. Create a pipeline that uses `.circleci/deploy.yml` from this repository.
-2. **Environments:** these are created automatically the first time a deploy runs. You can also create them up front in Deploys → Environments (custom integrations named `dev`, `test`, `stage`, `prod`).
-3. **Hierarchy:** Org → Deploys → Environment Hierarchy → Create new hierarchy. Add the levels in order: dev, test, stage, prod. Set it as the organization default.
+1. Still under **Deploys**, open **Environments**.
+2. Click **Create environment integration**.
+3. Choose **Custom**.
+4. Create four integrations, one at a time, named exactly `dev`, `test`, `stage`, and `prod`.
+5. You should see all four names. `dev` may already be there after the first deploy. That is fine. Do not create a second `dev`.
 
-When someone clicks Deploy or Promote, CircleCI fills in two values for that pipeline:
+### 7. Environment hierarchy
 
-- `pipeline.deploy.environment_name` is the environment they picked (`dev`, `test`, `stage`, or `prod`).
-- `pipeline.deploy.target_version` is the version they picked.
+1. Open **Deploys → Environment Hierarchy**.
+2. Create a hierarchy with the levels in this order: `dev`, then `test`, then `stage`, then `prod`.
+3. Set that hierarchy as the default.
+4. You should see `dev → test → stage → prod` marked as the default. Promote on the Deploys page uses this order.
 
-CircleCI's setup guide still shows `pipeline.deploy.target_environment_name`. The config compiler rejects that name, so this repo uses `environment_name`.
+### 8. Contexts
 
-## 6. First run
+A context is a named bag of settings for jobs. The names must match the config exactly.
 
-Push to `main`. The `ci` workflow runs validate and `deploy-dev`. When it finishes, the version appears on the Deploys page in **dev**, ready to promote.
+1. Open **Organization Settings → Contexts**.
+2. Create `ocsd-aws-dev`, `ocsd-aws-test`, `ocsd-aws-stage`, and `ocsd-aws-prod`.
+3. In each one, add these three environment variables. Use that environment's role ARN from the bootstrap output.
 
-**Backup promotion path:** if the deploy pipeline isn't set up yet, trigger a pipeline on `main` with the parameter `use-approval-promotion: true`. That runs dev → test → stage → prod with an approval before each step.
+| Context | `AWS_ROLE_ARN` | `AWS_REGION` | `TF_STATE_BUCKET` | Who can use it |
+| --- | --- | --- | --- | --- |
+| `ocsd-aws-dev` | dev role ARN | the region from the tfvars | `tf_state_bucket` | everyone on the project |
+| `ocsd-aws-test` | test role ARN | same region | same bucket | everyone on the project |
+| `ocsd-aws-stage` | stage role ARN | same region | same bucket | the approver GitHub team only |
+| `ocsd-aws-prod` | prod role ARN | same region | same bucket | the approver GitHub team only |
+
+4. On `ocsd-aws-stage` and `ocsd-aws-prod`, open **Security** and add the approver GitHub team. You should see that team listed, and other people should not be able to approve those jobs.
+5. `AWS_REGION` must be the same text as `aws_region` in the tfvars files. A mismatch makes the deploy look in the wrong region.
+
+## Optional: Teams notifications
+
+OCSD uses Microsoft Teams, not Slack. When a `stage` or `prod` deploy is waiting, CircleCI can post a message to a channel. The notification never blocks a deploy. Create the context `ocsd-notify` even when you do not have a URL yet. If the variable is unset, the job prints `Teams notification skipped` and stays green. If the context does not exist, that job fails to start, and the approval still proceeds.
+
+The old Office 365 connector webhooks are retired. Use a Teams **Workflows** webhook (Power Automate).
+
+1. In Teams, open the approver channel.
+2. Select the channel menu (**...**) → **Workflows**.
+3. Choose the template **Post to a channel when a webhook request is received**. If you do not see it, create a flow whose trigger is **When a Teams webhook request is received**, and whose action posts the adaptive card attachments to this channel.
+4. Pick this team and this channel. Save the flow.
+5. Copy the HTTP URL the flow shows. You should see a long URL that starts with `https://`.
+6. In CircleCI, **Organization Settings → Contexts**, create a context named `ocsd-notify`. Do not restrict it to the approver team. The notification job has to read it.
+7. Add one environment variable: name `TEAMS_WEBHOOK_URL`, value the URL you copied.
+8. Do not paste the URL into Git, into a pull request, or into chat.
+
+The pipeline sends the Adaptive Card envelope documented by Microsoft for that trigger: `type` is `message`, and `attachments` holds one card. See [When a Teams webhook request is received](https://learn.microsoft.com/en-us/connectors/teams/).
+
+The message says which version is waiting, the environment (`stage` or `prod`), and links to `https://app.circleci.com/pipelines/workflows/<workflow id>`. If `TEAMS_WEBHOOK_URL` is missing, the job prints `Teams notification skipped` and exits successfully.
+
+## 9. First deploy, then promote to test
+
+1. Push to `main` if you have not already. **Ask the user first** if you are an agent.
+2. Open the project pipelines. You should see workflow `ci` with jobs `validate` and `deploy-dev` green.
+3. Open **Deploys**. You should see component `ocsd-poc-infra` with that version in `dev`.
+4. Promote it to `test` using [docs/ZERO_TO_HERO.md](ZERO_TO_HERO.md) Part 3. You should see workflow `deploy-test` and job `deploy-from-ui` green.
+
+`stage` and `prod` wait for an approver. That path is [docs/ZERO_TO_HERO.md](ZERO_TO_HERO.md), "Deploying to prod when you're not an approver".
+
+If the deploy pipeline is not set up yet, a backup path exists. Trigger a pipeline on `main` with parameter `use-approval-promotion` set to true. It deploys `dev`, then waits for an approval before `test`, `stage`, and `prod`. Prefer the Deploys page once step 5 is done.
 
 ## Optional: config policies
 
-Not part of the core workshop. These rules block static AWS keys and warn on oversized resource classes.
+Not part of setup. These rules block static AWS keys and warn on oversized resource classes.
 
 ```bash
-circleci policy push policies/ --org <ORG_ID>
-circleci policy settings set --org <ORG_ID> --enabled
+circleci policy push policies/ --org ORG_ID
+circleci policy settings set --org ORG_ID --enabled
 ```
 
 Check a config against the rules you just uploaded. The result is `PASS`, `SOFT_FAIL` (a warning, the pipeline still runs), or `HARD_FAIL` (the pipeline is blocked):
 
 ```bash
-circleci policy decide --org <ORG_ID> --input policies/examples/blocked-static-keys.yml       # HARD_FAIL
-circleci policy decide --org <ORG_ID> --input policies/examples/soft-fail-large-machine.yml   # SOFT_FAIL
-circleci policy decide --org <ORG_ID> --input .circleci/config.yml                            # PASS
-circleci policy decide --org <ORG_ID> --input .circleci/deploy.yml                            # PASS
+circleci policy decide --org ORG_ID --input policies/examples/blocked-static-keys.yml
+circleci policy decide --org ORG_ID --input policies/examples/soft-fail-large-machine.yml
+circleci policy decide --org ORG_ID --input .circleci/config.yml
+circleci policy decide --org ORG_ID --input .circleci/deploy.yml
 ```
 
-To try the rules on a laptop before uploading them, use `circleci policy eval policies/ --input <file>`. A blocked file lists a message for `no_static_aws_keys`. The large-machine example lists a message for `standard_resource_classes`. The two real configs list neither.
+The blocked file fails on `no_static_aws_keys`. The large-machine example warns on `standard_resource_classes`. The two real configs pass both.

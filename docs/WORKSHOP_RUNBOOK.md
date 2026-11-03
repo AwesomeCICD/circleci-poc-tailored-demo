@@ -6,22 +6,21 @@
 ## Before the session (Moo)
 
 - [ ] CircleCI trial turned on for the OCSD org
-- [ ] From Eric: sandbox account ID + region, repo name, the existing module to reuse, SonarQube URL (or decide on SonarQube Cloud), attendee list
-- [ ] Repo pushed, `docs/SETUP.md` steps 1–7 done or ready to do live
-- [ ] Dry run of `circleci policy decide` against the examples
+- [ ] From Eric: sandbox account ID + region, repo name, the existing module to reuse, attendee list
+- [ ] Repo pushed, `docs/SETUP.md` steps 1–6 done or ready to do live
+- [ ] Optional: dry run of `circleci policy decide` against the examples
 
 ## Agenda
 
-| Time | Block | Outcome |
-| --- | --- | --- |
-| 0:00–0:10 | Intro, goals, success criteria recap | Everyone knows what "done" looks like |
-| 0:10–0:30 | Connect repo, run bootstrap (OIDC + roles + state), create contexts | No AWS keys anywhere |
-| 0:30–0:50 | Push to main → validate, SonarQube, deploy dev (network + EC2) | First green deploy on the Deploys page |
-| 0:50–1:05 | Create the environment hierarchy, promote dev → test → stage (approval) | Criterion 2: one click with authorization |
-| 1:05–1:30 | Bring in Eric's existing module with `_template` + `platform-lookup` | Criterion 3: attaches to existing VPC, subnets, SG and tags, no copy-paste |
-| 1:30–1:45 | Config policy demo: push a config without the scan → blocked | Criterion 6 |
-| 1:45–1:55 | New-to-CI/CD engineer follows `ZERO_TO_HERO.md` alone, timed | Criterion 1 |
-| 1:55–2:00 | Gaps, questions, plan for the presentation to Joe | Date for Joe's presentation |
+| Time | Block |
+| --- | --- |
+| 0:00–0:10 | Goals and the three things we're proving |
+| 0:10–0:35 | Connect repo, run bootstrap (OIDC + roles + state bucket), create the four `ocsd-aws-*` contexts |
+| 0:35–0:55 | Push to main → validate → deploy dev (VPC, subnets, SG, EC2). First green deploy on the Deploys page |
+| 0:55–1:15 | Create environment hierarchy, promote dev → test → stage (approval) → prod (approval) |
+| 1:15–1:35 | Merge `demo/attach-module`. New module attaches by lookup and deploys to dev, then promote it |
+| 1:35–1:50 | Someone new to CI/CD follows ZERO_TO_HERO alone, timed |
+| 1:50–2:00 | Questions, next steps, trial start date |
 
 ## Talking points for Eric's open questions
 

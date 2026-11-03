@@ -13,46 +13,7 @@ import future.keywords
 policy_name["ocsd_guardrails"]
 
 # ---------------------------------------------------------------------------
-# 1. HARD: every pipeline must include a SonarQube job.
-# ---------------------------------------------------------------------------
-enable_hard["require_sonarqube_scan"]
-
-# Compiled jobs are what a triggered pipeline actually runs. Deploy pipelines
-# also declare the scan on every workflow in the source config: until CircleCI
-# fills in pipeline.deploy.environment_name, local compilation treats every
-# when: branch as false and leaves _compiled_.jobs empty.
-job_names[name] if {
-	some name, _ in input._compiled_.jobs
-}
-
-job_names[name] if {
-	some _, workflow in input.workflows
-	some job in workflow.jobs
-	name := workflow_job_name(job)
-}
-
-workflow_job_name(job) := job if {
-	is_string(job)
-}
-
-workflow_job_name(job) := name if {
-	is_object(job)
-	some name, _ in job
-}
-
-has_sonarqube_job if {
-	some job_name
-	job_names[job_name]
-	indexof(lower(job_name), "sonarqube") >= 0
-}
-
-require_sonarqube_scan = reason if {
-	not has_sonarqube_job
-	reason := "Every pipeline must run a SonarQube job (sonarqube-scan or sonarqube-quality-gate). Add it back to .circleci/config.yml."
-}
-
-# ---------------------------------------------------------------------------
-# 2. HARD: no static AWS keys in config. Use OIDC (aws-cli/setup role_arn).
+# 1. HARD: no static AWS keys in config. Use OIDC (aws-cli/setup role_arn).
 # ---------------------------------------------------------------------------
 enable_hard["no_static_aws_keys"]
 
@@ -73,7 +34,7 @@ no_static_aws_keys[key] = reason if {
 }
 
 # ---------------------------------------------------------------------------
-# 3. SOFT: warn on large machines (cost control). Pipeline still runs.
+# 2. SOFT: warn on large machines (cost control). Pipeline still runs.
 # ---------------------------------------------------------------------------
 enable_rule["standard_resource_classes"]
 

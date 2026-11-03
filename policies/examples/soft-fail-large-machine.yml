@@ -1,15 +1,8 @@
-# DEMO: compliant pipeline that uses a large machine.
+# DEMO: a pipeline that uses a large machine.
 # Expected: SOFT_FAIL on standard_resource_classes (pipeline still runs).
 version: 2.1
 
 jobs:
-  sonarqube-scan:
-    docker:
-      - image: cimg/node:22.11
-    resource_class: medium
-    steps:
-      - checkout
-      - run: echo "scan"
   build:
     docker:
       - image: cimg/base:current
@@ -21,6 +14,4 @@ jobs:
 workflows:
   main:
     jobs:
-      - sonarqube-scan
-      - build:
-          requires: [sonarqube-scan]
+      - build

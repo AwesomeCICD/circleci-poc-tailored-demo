@@ -1,5 +1,5 @@
 # CI pipeline: runs on every push.
-#   - Every branch: Terraform format/validate + SonarQube scan + plan against dev
+#   - Every branch: Terraform format/validate + plan against dev
 #   - main branch:  the same checks, then deploys to dev automatically
 # Promotion to test / stage / prod happens from the CircleCI Deploys page
 # (one click, see .circleci/deploy.yml), never by creating a branch per environment.
@@ -20,10 +20,6 @@ executors:
     docker:
       - image: cimg/aws:2025.01
     resource_class: small
-  node:
-    docker:
-      - image: cimg/node:22.11
-    resource_class: medium
 
 commands:
   install-terraform:
@@ -107,18 +103,6 @@ jobs:
               scripts/tf.sh "$stack" dev validate
             done
 
-  sonarqube-scan:
-    executor: node
-    steps:
-      - checkout
-      - run:
-          name: SonarQube scan (fails if the quality gate fails)
-          command: |
-            npx --yes sonarqube-scanner@4 \
-              -Dsonar.host.url="${SONAR_HOST_URL}" \
-              -Dsonar.token="${SONAR_TOKEN}" \
-              -Dsonar.qualitygate.wait=true
-
   plan:
     executor: terraform
     parameters:
@@ -157,19 +141,17 @@ workflows:
       not: << pipeline.parameters.use-approval-promotion >>
     jobs:
       - validate
-      - sonarqube-scan:
-          context: [ocsd-sonarqube]
       - plan:
           name: plan-dev
           environment: dev
           context: [ocsd-aws-dev]
-          requires: [validate, sonarqube-scan]
+          requires: [validate]
           filters: pipeline.git.branch != "main"
       - deploy:
           name: deploy-dev
           environment: dev
           context: [ocsd-aws-dev]
-          requires: [validate, sonarqube-scan]
+          requires: [validate]
           filters: pipeline.git.branch == "main"
 
   # Backup promotion path: dev -> test -> stage -> prod with approvals.
@@ -179,13 +161,11 @@ workflows:
     when: << pipeline.parameters.use-approval-promotion >>
     jobs:
       - validate
-      - sonarqube-scan:
-          context: [ocsd-sonarqube]
       - deploy:
           name: deploy-dev
           environment: dev
           context: [ocsd-aws-dev]
-          requires: [validate, sonarqube-scan]
+          requires: [validate]
       - approve-test:
           type: approval
           context: [ocsd-aws-test]

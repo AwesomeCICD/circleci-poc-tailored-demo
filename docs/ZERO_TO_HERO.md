@@ -18,7 +18,6 @@ This guide is for someone who has never used CI/CD (continuous integration and c
 | **Version** | A specific saved state of the code, shown as a short code like `a1b2c3d`. |
 | **Promote** | Take the version already running in one environment and deploy it to the next one. |
 | **Approval** | A person with permission must click Approve before stage or prod changes. |
-| **SonarQube** | A tool that scans code for security and quality problems before anything is deployed. |
 
 ## Part 1: Log in (2 minutes)
 
@@ -39,7 +38,6 @@ This guide is for someone who has never used CI/CD (continuous integration and c
 3. The promotion page shows the environments in order: dev → test → stage → prod. Click **Promote** to move the version to the next environment.
 4. A window opens with the version and target environment already filled in. Check them, then click **Deploy**.
 5. That's it. CircleCI now:
-    - confirms the SonarQube security scan passed,
     - logs in to AWS with a short-lived permission (no passwords or keys are stored),
     - builds or updates the infrastructure,
     - and marks the deploy green or red on the Deploys page.
@@ -56,7 +54,7 @@ Promoting to **stage** or **prod** pauses for approval.
 ## Part 5: If something goes wrong
 
 - **Red deploy:** click it, then click the failed step to read the message. Send the link to the platform team.
-- **"Pipeline blocked by policy":** the change broke an OCSD rule, for example by skipping the security scan. Nothing was deployed. Send the message to whoever made the change.
+- **"Pipeline blocked by policy":** the change broke an OCSD rule, for example by storing AWS keys in the config. Nothing was deployed. Send the message to whoever made the change.
 - **Need to go back:** on the Deploys page, pick the previous green version and deploy it to the same environment.
 
 ## What you just did

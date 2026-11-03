@@ -1,0 +1,20 @@
+# DEMO: a pipeline that stores static AWS keys.
+# `circleci policy decide --org <ORG_ID> --input policies/examples/blocked-static-keys.yml`
+# should return HARD_FAIL for no_static_aws_keys only.
+version: 2.1
+
+jobs:
+  deploy:
+    docker:
+      - image: cimg/aws:2025.01
+    resource_class: small
+    environment:
+      AWS_ACCESS_KEY_ID: AKIAEXAMPLE
+    steps:
+      - checkout
+      - run: echo "deploying with a static key"
+
+workflows:
+  main:
+    jobs:
+      - deploy

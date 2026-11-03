@@ -38,21 +38,6 @@ commands:
             terraform version
 
 jobs:
-  # Re-checks the SonarQube quality gate before any deploy.
-  sonarqube-quality-gate:
-    executor: terraform
-    steps:
-      - checkout
-      - run:
-          name: Confirm SonarQube quality gate is passing
-          command: |
-            KEY="$(awk -F= '/^sonar.projectKey/ {print $2}' sonar-project.properties | tr -d ' ')"
-            STATUS="$(curl -sSf -u "${SONAR_TOKEN}:" \
-              "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=${KEY}" \
-              | jq -r '.projectStatus.status')"
-            echo "Quality gate for ${KEY}: ${STATUS}"
-            [ "$STATUS" = "OK" ] || { echo "Quality gate is not passing. Deploy stopped."; exit 1; }
-
   deploy-from-ui:
     executor: terraform
     parameters:
@@ -106,34 +91,25 @@ workflows:
     when:
       equal: [dev, << pipeline.deploy.environment_name >>]
     jobs:
-      - sonarqube-quality-gate:
-          context: [ocsd-sonarqube]
       - deploy-from-ui:
           environment: dev
           context: [ocsd-aws-dev]
-          requires: [sonarqube-quality-gate]
 
   deploy-test:
     when:
       equal: [test, << pipeline.deploy.environment_name >>]
     jobs:
-      - sonarqube-quality-gate:
-          context: [ocsd-sonarqube]
       - deploy-from-ui:
           environment: test
           context: [ocsd-aws-test]
-          requires: [sonarqube-quality-gate]
 
   deploy-stage:
     when:
       equal: [stage, << pipeline.deploy.environment_name >>]
     jobs:
-      - sonarqube-quality-gate:
-          context: [ocsd-sonarqube]
       - approve-stage:
           type: approval
           context: [ocsd-aws-stage]
-          requires: [sonarqube-quality-gate]
       - deploy-from-ui:
           environment: stage
           context: [ocsd-aws-stage]
@@ -143,12 +119,9 @@ workflows:
     when:
       equal: [prod, << pipeline.deploy.environment_name >>]
     jobs:
-      - sonarqube-quality-gate:
-          context: [ocsd-sonarqube]
       - approve-prod:
           type: approval
           context: [ocsd-aws-prod]
-          requires: [sonarqube-quality-gate]
       - deploy-from-ui:
           environment: prod
           context: [ocsd-aws-prod]

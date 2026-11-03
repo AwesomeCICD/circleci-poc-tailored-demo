@@ -13,13 +13,13 @@ New to CI/CD? Start with **[docs/ZERO_TO_HERO.md](docs/ZERO_TO_HERO.md)**. You d
 | 3 | Templates and modules without copy-paste | [infra/modules/platform-lookup](infra/modules/platform-lookup/main.tf) finds the VPC, subnets, security group and tags by lookup. [infra/modules/_template](infra/modules/_template/main.tf) is the starting point for bringing in an existing module |
 | 4 | Migrate a critical GitHub Actions pipeline | Use this repo's pattern. The workshop covers mapping the selected workflow |
 | 5 | AWS deploys with IAM roles via OIDC (OpenID Connect) | [bootstrap/main.tf](bootstrap/main.tf) creates the trust and roles. Pipelines call `aws-cli/setup` with `role_arn`. No AWS keys are stored in CircleCI |
-| 6 | SonarQube scan + config policies | `sonarqube-scan` job in [.circleci/config.yml](.circleci/config.yml), quality-gate check in deploy.yml, rules in [policies/ocsd_guardrails.rego](policies/ocsd_guardrails.rego) |
+| 6 | Config policies (optional) | [policies/ocsd_guardrails.rego](policies/ocsd_guardrails.rego). Not part of the core workshop |
 
 ## How it works
 
 ```
-push to any branch ──► validate + SonarQube scan + plan (dev)
-push to main       ──► validate + SonarQube scan + deploy to dev  ──► version shows on Deploys page
+push to any branch ──► validate + plan (dev)
+push to main       ──► validate + deploy to dev  ──► version shows on Deploys page
 Deploys page       ──► Promote ──► test ──► Promote ──► stage (approval) ──► Promote ──► prod (approval)
 ```
 
@@ -44,7 +44,7 @@ infra/
   stacks/
     network/          Deploys modules/network
     compute/          Deploys modules/ec2-linux
-policies/             Config policies (Rego) + example configs that get blocked
+policies/             Optional config policies (Rego) + example configs that get blocked
 scripts/
   tf.sh               Runs Terraform for <stack> <env> <plan|apply|validate>
   stacks.txt          Which stacks deploy, in order

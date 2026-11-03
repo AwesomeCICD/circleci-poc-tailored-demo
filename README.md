@@ -56,6 +56,8 @@ docs/
 
 ## Adding a new module
 
+Using an AI coding agent? It reads `AGENTS.md` (Claude Code reads `CLAUDE.md`), which has these rules and steps.
+
 1. Copy `infra/modules/_template` to `infra/modules/<name>` and paste in your existing module.
 2. Replace hard-coded IDs and tags with `module.platform.*`.
 3. Copy `infra/stacks/compute` to `infra/stacks/<name>` and point it at the new module.
